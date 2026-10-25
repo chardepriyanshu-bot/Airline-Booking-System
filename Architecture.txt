@@ -1,0 +1,42 @@
+# Airline Booking System — Microservices Architecture
+
+## 1. Existing Microservices
+
+1. City Service
+2. Airport Service
+3. User Service — JWT Authentication
+4. Airline Service
+5. Aircraft Service
+
+## 2. Core Business Microservices
+
+6. Flight Service — Flight details, route and aircraft references
+7. Flight Schedule Service — Departure, arrival, date and time
+8. Seat Inventory Service — Seat availability and reservation
+9. Booking Service — Booking, passenger details and status
+10. Payment Service — Payments, refunds and payment status
+11. Notification Service — Booking confirmation and cancellation emails
+
+## 3. Infrastructure Components
+
+12. API Gateway — Routing and centralized security
+13. Eureka Server — Service discovery
+14. Redis — Flight search caching
+15. Apache Kafka — Asynchronous event communication
+16. Spring Cloud Config Server — Centralized configuration (optional)
+17. Spring Boot Actuator — Health checks and monitoring (optional)
+
+## 4. Development Order
+
+Phase 1: Flight Service
+Phase 2: Flight Schedule Service
+Phase 3: Seat Inventory Service
+Phase 4: Booking Service
+Phase 5: Payment Service
+Phase 6: Kafka integration
+Phase 7: Notification Service
+Phase 8: Redis caching and final integration testing
+
+## 5. Technology Stack
+
+Java, Spring Boot, Spring Data JPA, Hibernate, Oracle SQL, Spring Security, JWT, OpenFeign, Eureka, Spring Cloud Gateway, Redis, Apache Kafka, Maven, Postman and Git.

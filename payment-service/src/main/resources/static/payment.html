@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Razorpay Payment</title>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            width: 340px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #3399cc;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        #message {
+            margin-top: 15px;
+            overflow-wrap: anywhere;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <h2>Complete Payment</h2>
+
+    <form id="paymentForm">
+        <input
+            type="number"
+            id="userId"
+            placeholder="User ID"
+            min="1"
+            required
+        >
+
+        <input
+            type="number"
+            id="bookingId"
+            placeholder="Booking ID"
+            min="1"
+            required
+        >
+
+        <input
+            type="number"
+            id="amount"
+            placeholder="Amount in INR"
+            min="1"
+            step="0.01"
+            required
+        >
+
+        <!-- Values must match your PaymentMethod enum exactly (uppercase). -->
+        <select id="paymentMethod" required>
+            <option value="UPI">UPI</option>
+            <option value="CARD">Card</option>
+            <option value="NET_BANKING">Net Banking</option>
+        </select>
+
+        <input
+            type="text"
+            id="customerName"
+            placeholder="Customer Name"
+            required
+        >
+
+        <input
+            type="email"
+            id="customerEmail"
+            placeholder="Customer Email"
+            required
+        >
+
+        <input
+            type="tel"
+            id="customerPhone"
+            placeholder="Customer Phone"
+            required
+        >
+
+        <button type="submit" id="payButton">
+            Pay Now
+        </button>
+    </form>
+
+    <p id="message" role="status"></p>
+</div>
+
+<script>
+    // Change this if your Payment Service uses another port.
+    const BASE_URL = "http://localhost:8093";
+
+    // Razorpay TEST key ID. Never put your Razorpay Key Secret in this file.
+    const RAZORPAY_KEY_ID = "rzp_test_Tpeg3wmdz4QoTY";
+
+    const form = document.getElementById("paymentForm");
+    const payButton = document.getElementById("payButton");
+    const message = document.getElementById("message");
+
+    function showMessage(text) {
+        message.textContent = text;
+    }
+
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        payButton.disabled = true;
+        showMessage("Creating payment order...");
+
+        try {
+            const userId = Number(document.getElementById("userId").value);
+            const bookingId = Number(document.getElementById("bookingId").value);
+            const paymentMethod = document.getElementById("paymentMethod").value;
+            const amount = Number(document.getElementById("amount").value);
+
+            if (!Number.isFinite(amount) || amount <= 0) {
+                throw new Error("Enter a valid amount.");
+            }
+
+            const customerName =
+                document.getElementById("customerName").value.trim();
+            const customerEmail =
+                document.getElementById("customerEmail").value.trim();
+            const customerPhone =
+                document.getElementById("customerPhone").value.trim();
+
+            // 1) Create the order on your backend.
+            const response = await fetch(`${BASE_URL}/api/payments`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    amount: amount,
+                    currency: "INR",
+                    userId: userId,
+                    bookingId: bookingId,
+                    paymentMethod: paymentMethod
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("Order creation failed:", response.status, errorText);
+                throw new Error(
+                    "Order creation failed (" + response.status + "): " + errorText
+                );
+            }
+
+            const order = await response.json();
+            console.log("Order response:", order);
+
+            // Accept common names for the Razorpay order id.
+            const orderId =
+                order.id || order.orderId || order.razorpayOrderId;
+
+            if (!orderId) {
+                throw new Error(
+                    "Backend response does not contain an order ID. " +
+                    "Response: " + JSON.stringify(order)
+                );
+            }
+
+            // 2) Open Razorpay Checkout.
+            const options = {
+                key: RAZORPAY_KEY_ID,
+                amount: Math.round(amount * 100),
+                currency: "INR",
+                name: "Airline Management System",
+                description: "Test Payment",
+                order_id: orderId,
+
+                prefill: {
+                    name: customerName,
+                    email: customerEmail,
+                    contact: customerPhone
+                },
+
+                theme: {
+                    color: "#3399cc"
+                },
+
+                handler: async function (paymentResponse) {
+                    showMessage("Verifying payment...");
+
+                    try {
+                        // 3) Verify the signature on your backend.
+                        const verifyResponse = await fetch(
+                            `${BASE_URL}/api/payments/verify`,
+                            {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify({
+                                    razorpayOrderId:
+                                        paymentResponse.razorpay_order_id,
+                                    razorpayPaymentId:
+                                        paymentResponse.razorpay_payment_id,
+                                    razorpaySignature:
+                                        paymentResponse.razorpay_signature
+                                })
+                            }
+                        );
+
+                        const verifyText = await verifyResponse.text();
+                        let result;
+                        try {
+                            result = JSON.parse(verifyText);
+                        } catch (e) {
+                            result = { message: verifyText };
+                        }
+
+                        if (!verifyResponse.ok) {
+                            throw new Error(
+                                "(" + verifyResponse.status + ") " +
+                                (result.message || verifyText ||
+                                    "Payment verification failed.")
+                            );
+                        }
+
+                        showMessage("Payment verified successfully.");
+                        console.log("Verification response:", result);
+                    } catch (error) {
+                        showMessage(
+                            "Payment was submitted, but verification " +
+                            "could not be confirmed: " + error.message
+                        );
+                    } finally {
+                        payButton.disabled = false;
+                    }
+                },
+
+                modal: {
+                    ondismiss: function () {
+                        showMessage("Checkout closed.");
+                        payButton.disabled = false;
+                    }
+                }
+            };
+
+            const checkout = new Razorpay(options);
+
+            checkout.on("payment.failed", function (failure) {
+                showMessage(
+                    "Payment failed: " +
+                    (failure.error.description || "Please try again.")
+                );
+
+                console.error("Payment failure:", failure.error);
+                payButton.disabled = false;
+            });
+
+            checkout.open();
+
+        } catch (error) {
+            showMessage(error.message);
+            payButton.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>
